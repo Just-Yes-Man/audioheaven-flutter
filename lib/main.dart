@@ -62,7 +62,7 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     final httpLink = authLink.concat(
-      HttpLink('http://127.0.0.1:8000/graphql/'),
+      HttpLink('https://audioheaven-graph.onrender.com/graphql/'),
     );
 
     final client = ValueNotifier<GraphQLClient>(
