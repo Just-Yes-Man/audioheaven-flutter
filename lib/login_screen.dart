@@ -64,10 +64,7 @@ class _LoginPageState extends State<LoginPage> {
               icon: const Icon(Icons.logout),
               label: const Text('Cerrar sesión'),
               onPressed: () {
-                setState(() {
-                  appState.token = "";
-                  appState.username = "";
-                });
+                appState.logout();
                 showAlert(
                   title: "Sesión cerrada",
                   desc: "Has cerrado sesión correctamente.",
@@ -119,13 +116,11 @@ class _LoginPageState extends State<LoginPage> {
               label: const Text("Iniciar sesión"),
               onPressed: () async {
                 if (_formKey.currentState!.validate()) {
-                  // Actualizar estado primero
-                  setState(() {
-                    appState.token = "token-demo";
-                    appState.username = userNameController.text;
-                  });
 
-                  // Mostrar alerta y esperar a que se cierre
+                  appState.login(userNameController.text, "token-demo");
+
+
+     
                   await showAlert(
                     title: "¡Bienvenido!",
                     desc: "Inicio de sesión correcto.",

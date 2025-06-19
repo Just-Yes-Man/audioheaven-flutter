@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'MyAppState.dart';
 
-// GraphQL Queries
 const String query = """
 query Songs {
   songs {
@@ -14,6 +13,7 @@ query Songs {
     titulo
     descripcion
     totalCount
+    mostVotedRating
     comments {
       id
       text
@@ -41,6 +41,19 @@ mutation CreateComment(\$songId: Int!, \$text: String!) {
 }
 """;
 
+const String createVoteMutation = """
+mutation CreateVote(\$songId: Int!, \$rating: Int!) {
+  createVote(songId: \$songId, rating: \$rating) {
+    song {
+      id
+    }
+    user {
+      username
+    }
+  }
+}
+""";
+
 const String deleteSongMutation = """
 mutation DeleteSong(\$songId: Int!) {
   deleteSong(songId: \$songId) {
@@ -49,6 +62,7 @@ mutation DeleteSong(\$songId: Int!) {
   }
 }
 """;
+
 Future<void> abrirEnlace(BuildContext context, String url) async {
   final fixedUrl = url.startsWith('http') ? url : 'https://$url';
   final uri = Uri.parse(fixedUrl);
@@ -83,9 +97,7 @@ class LogsPage extends StatelessWidget {
     var appState = context.watch<MyAppState>();
 
     if (appState.token.isEmpty) {
-      return const Center(
-        child: Text('No login yet.'),
-      );
+      return const Center(child: Text('No login yet.'));
     }
 
     return Query(
@@ -94,24 +106,13 @@ class LogsPage extends StatelessWidget {
         fetchPolicy: FetchPolicy.networkOnly,
       ),
       builder: (result, {fetchMore, refetch}) {
-        if (result.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        }
-
-        if (result.hasException) {
-          return Center(
-            child: Text('Error: ${result.exception.toString()}'),
-          );
-        }
+        if (result.isLoading) return const Center(child: CircularProgressIndicator());
+        if (result.hasException) return Center(child: Text('Error: ${result.exception.toString()}'));
 
         final songs = result.data?['songs'] ?? [];
 
         if (songs.isEmpty) {
-          return const Center(
-            child: Text("No songs found!"),
-          );
+          return const Center(child: Text("No songs found!"));
         }
 
         return ListView.builder(
@@ -123,8 +124,9 @@ class LogsPage extends StatelessWidget {
             final titulo = song['titulo'] ?? '';
             final descripcion = song['descripcion'] ?? '';
             final totalCount = song['totalCount'] ?? 0;
+            final mostVotedRating = song['mostVotedRating'] ?? 0;
             final comments = (song['comments'] as List<dynamic>? ?? []);
-             
+
             String commentsText = comments.isEmpty
                 ? "No hay comentarios aún."
                 : comments.map((c) {
@@ -142,100 +144,80 @@ class LogsPage extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      titulo,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                    ),
+                    Text(titulo, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     if (descripcion.isNotEmpty)
-                      Text(
-                        descripcion,
-                        style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-                      ),
+                      Text(descripcion, style: TextStyle(fontSize: 16, color: Colors.grey[700])),
                     const SizedBox(height: 6),
                     GestureDetector(
-  onTap: () => abrirEnlace(context, url),
-  child: Text(
-    url,
-    style: const TextStyle(
-      fontSize: 14,
-      color: Colors.blue,
-      decoration: TextDecoration.underline,
-    ),
-  ),
-),
-
+                      onTap: () => abrirEnlace(context, url),
+                      child: Text(
+                        url,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.blue,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 6),
-                    Text(
-                      "Votos: $totalCount",
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
+                    Text("⭐ Reacción más votada: ${mostVotedRating == 0 ? 'Ninguna' : '$mostVotedRating estrella(s)'}"),
+                    Text("🗳️ Total de votos: $totalCount"),
                     const SizedBox(height: 10),
-                    const Text(
-                      "Comentarios:",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
+                    const Text("💬 Comentarios:", style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
-                    Text(
-                      commentsText,
-                      style: const TextStyle(fontSize: 14),
-                    ),
+                    Text(commentsText, style: const TextStyle(fontSize: 14)),
                     const SizedBox(height: 12),
-                    CommentForm(
-                      songId: id,
-                      onCommentAdded: () {
-                        refetch?.call();
-                      },
-                    ),const SizedBox(height: 12),
-Row(
-  mainAxisAlignment: MainAxisAlignment.end,
-  children: [
-    Mutation(
-      options: MutationOptions(
-        document: gql(deleteSongMutation),
-        onCompleted: (resultData) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(resultData?['deleteSong']?['message'] ?? 'Deleted')),
-          );
-          refetch?.call();
-        },
-        onError: (error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${error?.graphqlErrors.first.message ?? error.toString()}')),
-          );
-        },
-      ),
-      builder: (runMutation, mutationResult) {
-        return IconButton(
-          icon: const Icon(Icons.delete, color: Colors.red),
-          tooltip: 'Eliminar canción',
-          onPressed: () {
-            showDialog(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Confirmar eliminación'),
-                content: const Text('¿Estás seguro de borrar esta canción?'),
-                actions: [
-                  TextButton(
-                    child: const Text('Cancelar'),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  TextButton(
-                    child: const Text('Borrar'),
-                    onPressed: () {
-                      Navigator.pop(context);
-                      runMutation({'songId': id});
-                    },
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    ),
-  ],
-),
+                    CommentForm(songId: id, onCommentAdded: () => refetch?.call()),
+                    const SizedBox(height: 12),
+                    StarVoteForm(songId: id, onVoted: () => refetch?.call()),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Mutation(
+                          options: MutationOptions(
+                            document: gql(deleteSongMutation),
+                            onCompleted: (resultData) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(resultData?['deleteSong']?['message'] ?? 'Deleted')),
+                              );
+                              refetch?.call();
+                            },
+                            onError: (error) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: ${error?.graphqlErrors.first.message ?? error.toString()}')),
+                              );
+                            },
+                          ),
+                          builder: (runMutation, mutationResult) {
+                            return IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Eliminar canción',
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    title: const Text('Confirmar eliminación'),
+                                    content: const Text('¿Estás seguro de borrar esta canción?'),
+                                    actions: [
+                                      TextButton(child: const Text('Cancelar'), onPressed: () => Navigator.pop(context)),
+                                      TextButton(
+                                        child: const Text('Borrar'),
+                                        onPressed: () {
+                                          Navigator.pop(context);
+                                          runMutation({'songId': id});
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -246,6 +228,60 @@ Row(
     );
   }
 }
+class StarVoteForm extends StatefulWidget {
+  final int songId;
+  final VoidCallback onVoted;
+
+  const StarVoteForm({required this.songId, required this.onVoted});
+
+  @override
+  _StarVoteFormState createState() => _StarVoteFormState();
+}
+
+class _StarVoteFormState extends State<StarVoteForm> {
+  int selectedRating = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Mutation(
+      options: MutationOptions(
+        document: gql(createVoteMutation),
+        onCompleted: (_) {
+          widget.onVoted();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ ¡Voto registrado!')),
+          );
+        },
+        onError: (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${error?.graphqlErrors.first.message ?? error.toString()}')),
+          );
+        },
+      ),
+      builder: (runMutation, result) {
+        return Row(
+          children: List.generate(5, (index) {
+            final starIndex = index + 1;
+            return IconButton(
+              icon: Icon(
+                selectedRating >= starIndex ? Icons.star : Icons.star_border,
+                color: Colors.amber,
+              ),
+              onPressed: () {
+                setState(() => selectedRating = starIndex);
+                runMutation({
+                  'songId': widget.songId,
+                  'rating': starIndex,
+                });
+              },
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 
 class CommentForm extends StatefulWidget {
   final int songId;
