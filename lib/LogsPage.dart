@@ -40,6 +40,15 @@ mutation CreateComment(\$songId: Int!, \$text: String!) {
   }
 }
 """;
+
+const String deleteSongMutation = """
+mutation DeleteSong(\$songId: Int!) {
+  deleteSong(songId: \$songId) {
+    ok
+    message
+  }
+}
+""";
 Future<void> abrirEnlace(BuildContext context, String url) async {
   final fixedUrl = url.startsWith('http') ? url : 'https://$url';
   final uri = Uri.parse(fixedUrl);
@@ -177,7 +186,56 @@ class LogsPage extends StatelessWidget {
                       onCommentAdded: () {
                         refetch?.call();
                       },
-                    ),
+                    ),const SizedBox(height: 12),
+Row(
+  mainAxisAlignment: MainAxisAlignment.end,
+  children: [
+    Mutation(
+      options: MutationOptions(
+        document: gql(deleteSongMutation),
+        onCompleted: (resultData) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(resultData?['deleteSong']?['message'] ?? 'Deleted')),
+          );
+          refetch?.call();
+        },
+        onError: (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${error?.graphqlErrors.first.message ?? error.toString()}')),
+          );
+        },
+      ),
+      builder: (runMutation, mutationResult) {
+        return IconButton(
+          icon: const Icon(Icons.delete, color: Colors.red),
+          tooltip: 'Eliminar canción',
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Confirmar eliminación'),
+                content: const Text('¿Estás seguro de borrar esta canción?'),
+                actions: [
+                  TextButton(
+                    child: const Text('Cancelar'),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  TextButton(
+                    child: const Text('Borrar'),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      runMutation({'songId': id});
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ),
+  ],
+),
                   ],
                 ),
               ),
