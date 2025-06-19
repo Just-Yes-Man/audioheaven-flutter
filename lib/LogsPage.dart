@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'MyAppState.dart';
 
+// GraphQL Queries
 const String query = """
 query Songs {
   songs {
@@ -37,6 +40,33 @@ mutation CreateComment(\$songId: Int!, \$text: String!) {
   }
 }
 """;
+Future<void> abrirEnlace(BuildContext context, String url) async {
+  final fixedUrl = url.startsWith('http') ? url : 'https://$url';
+  final uri = Uri.parse(fixedUrl);
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('🌐 Intentando abrir: $fixedUrl')),
+  );
+
+  try {
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      final msg = '❌ No se pudo abrir el enlace: $fixedUrl (launchUrl retornó false)';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
+      print(msg);
+    }
+  } catch (e) {
+    final msg = '❌ Error al abrir enlace: $e';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
+    print(msg);
+  }
+}
+
+
 
 class LogsPage extends StatelessWidget {
   @override
@@ -85,7 +115,7 @@ class LogsPage extends StatelessWidget {
             final descripcion = song['descripcion'] ?? '';
             final totalCount = song['totalCount'] ?? 0;
             final comments = (song['comments'] as List<dynamic>? ?? []);
-
+             
             String commentsText = comments.isEmpty
                 ? "No hay comentarios aún."
                 : comments.map((c) {
@@ -106,7 +136,6 @@ class LogsPage extends StatelessWidget {
                     Text(
                       titulo,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-
                     ),
                     const SizedBox(height: 8),
                     if (descripcion.isNotEmpty)
@@ -115,24 +144,32 @@ class LogsPage extends StatelessWidget {
                         style: TextStyle(fontSize: 16, color: Colors.grey[700]),
                       ),
                     const SizedBox(height: 6),
-                    Text(
-                      url,
-                      style: TextStyle(fontSize: 14, color: Colors.blue),
-                    ),
+                    GestureDetector(
+  onTap: () => abrirEnlace(context, url),
+  child: Text(
+    url,
+    style: const TextStyle(
+      fontSize: 14,
+      color: Colors.blue,
+      decoration: TextDecoration.underline,
+    ),
+  ),
+),
+
                     const SizedBox(height: 6),
                     Text(
                       "Votos: $totalCount",
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 10),
-                    Text(
+                    const Text(
                       "Comentarios:",
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       commentsText,
-                      style: TextStyle(fontSize: 14),
+                      style: const TextStyle(fontSize: 14),
                     ),
                     const SizedBox(height: 12),
                     CommentForm(
@@ -201,8 +238,8 @@ class _CommentFormState extends State<CommentForm> {
                     });
                   }
                 },
-                icon: Icon(Icons.send),
-                label: Text("Comentar"),
+                icon: const Icon(Icons.send),
+                label: const Text("Comentar"),
               ),
             ),
             if (result?.hasException ?? false)
@@ -210,7 +247,7 @@ class _CommentFormState extends State<CommentForm> {
                 padding: const EdgeInsets.only(top: 8.0),
                 child: Text(
                   result!.exception.toString(),
-                  style: TextStyle(color: Colors.red),
+                  style: const TextStyle(color: Colors.red),
                 ),
               ),
           ],
